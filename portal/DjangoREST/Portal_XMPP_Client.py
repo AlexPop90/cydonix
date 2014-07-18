@@ -20,7 +20,7 @@ import os
 
 
 class PortalXMPP(ClientXMPP):
-    def __init__(self, jid, password, sensor_bot_jid, sqlite3_db_path, polling):
+    def __init__(self, jid, password, sensor_bot_jid, pubsub_server_jid, node, sqlite3_db_path, polling):
         ClientXMPP.__init__(self, jid, password)
 
         # Setting the sender jid and the receiver jid
@@ -50,8 +50,8 @@ class PortalXMPP(ClientXMPP):
         self.add_event_handler("message", self.receive_m)
 
         self.register_plugin('xep_0060')
-        self.node = 'cydonix_node'
-        self.pubsub_server = "pubsub.teseus.integrasoft.ro"
+        self.node = node
+        self.pubsub_server = pubsub_server_jid
         self.add_event_handler('pubsub_publish', self._publish)
 
         try:
@@ -244,6 +244,8 @@ sender_pass = conf.get("XMPP", "sender_pass")
 receiver_jid = conf.get("XMPP", "receiver_jid")
 sqlite3_DB_path = conf.get("XMPP", "sqlite3_DB_path")
 polling_interval = int(conf.get("XMPP", "polling"))
+pubsub_jid = conf.get("XMPP", "pubsub_jid")
+pubsub_node = conf.get("XMPP", "pubsub_node")
 
 # Initializing the XMPP bot
-xmpp = PortalXMPP(sender_jid, sender_pass, receiver_jid, sqlite3_DB_path, polling_interval)
+xmpp = PortalXMPP(sender_jid, sender_pass, receiver_jid, pubsub_jid, pubsub_node, sqlite3_DB_path, polling_interval)
