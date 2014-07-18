@@ -2,6 +2,7 @@ __author__ = 'alex'
 import logging
 
 from sleekxmpp import ClientXMPP
+from sleekxmpp.xmlstream import ET, tostring
 
 from datetime import datetime
 
@@ -14,6 +15,8 @@ import ConfigParser
 from optparse import OptionParser
 import sys
 import os
+
+
 
 
 class PortalXMPP(ClientXMPP):
@@ -46,7 +49,18 @@ class PortalXMPP(ClientXMPP):
         # Adding "message" event handler
         self.add_event_handler("message", self.receive_m)
 
+        self.register_plugin('xep_0060')
+        self.node = 'cydonix_node'
+        self.pubsub_server = "pubsub.teseus.integrasoft.ro"
+        self.add_event_handler('pubsub_publish', self._publish)
+
         try:
+            #self.subscribe()
+            #self.unsubscribe()
+            self.process(block=True)
+        except KeyboardInterrupt:
+            self.send_thread.cancel()
+        '''try:
             # Creating and starting first send thread
             t = threading.Timer(1, self.send_m)
             t.start()
@@ -55,7 +69,7 @@ class PortalXMPP(ClientXMPP):
             self.process(block=True)
 
         except KeyboardInterrupt:
-            self.send_thread.cancel()
+            self.send_thread.cancel()'''
 
     def send_m(self):
         self.connection = sqlite3.connect(self.DB_path)
@@ -90,7 +104,8 @@ class PortalXMPP(ClientXMPP):
         self.connection = sqlite3.connect(self.DB_path)
         self.cursor = self.connection.cursor()
 
-        print("Received '"+str(msg['body'])+"'")
+        #print("Received '"+str(msg['body'])+"'")
+        print("Received '"+str(msg)+"'")
 
         # Parsing the received message, with regular expressions
         s_sensor_type_names = re.split(' ', str(msg['body']))
@@ -160,6 +175,46 @@ class PortalXMPP(ClientXMPP):
         sensor_types = self.cursor.fetchall()
         for item in sensor_types:
             self.sensor_types_dict[str(item[1])] = item[0]
+
+    def subscribe(self):
+        try:
+            result = self['xep_0060'].subscribe(self.pubsub_server, self.node)
+            print(result)
+            print('Subscribed %s to node %s' % (self.boundjid.bare, self.node))
+        except:
+            logging.error('Could not subscribe %s to node %s' % (self.boundjid.bare, self.node))
+
+    def unsubscribe(self):
+        try:
+            result = self['xep_0060'].unsubscribe(self.pubsub_server, self.node)
+            print('Unsubscribed %s from node %s' % (self.boundjid.bare, self.node))
+        except:
+            logging.error('Could not unsubscribe %s from node %s' % (self.boundjid.bare, self.node))
+
+    def _publish(self, msg):
+        """Handle receiving a publish item event."""
+        print('Published item %s to %s:' % (
+            msg['pubsub_event']['items']['item']['id'],
+            msg['pubsub_event']['items']['node']))
+        data = msg['pubsub_event']['items']['item']['payload']
+        msg_2 = {}
+        if data is not None:
+            str_data = tostring(data)
+            erase = 'abc'
+            while True:
+                try:
+                    erase = re.search("(<.*?>)", str_data).group(1)
+                except AttributeError:
+                    break
+                str_data = str_data.replace(erase, '')
+
+            msg_2['body'] = str_data
+
+            # The 2 ways to insert new data in the sensor data table
+            self.receive_m(msg_2)  # 1) get data from notification
+            #self.send_m()  # 2) send get data and parse received message
+        else:
+            print('No item content')
 
 
 # Setting up the command line arguments
